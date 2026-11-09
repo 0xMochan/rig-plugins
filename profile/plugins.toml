@@ -1,0 +1,35 @@
+# Reproducible composition; private state under this Rig home is ignored.
+[[plugin]]
+crate = "rig-profile"
+path = "../crates/rig-profile"
+plugin = "rig_profile::RigProfilePlugin"
+
+[[plugin]]
+crate = "rig-tui"
+version = "=0.46.0"
+plugin = "rig_tui::TuiPlugin"
+
+[[plugin]]
+crate = "rig-tui-scroll"
+path = "../crates/rig-tui-scroll"
+plugin = "rig_tui_scroll::TuiScrollPlugin"
+
+[[plugin]]
+crate = "rig-tui-history"
+path = "../crates/rig-tui-history"
+plugin = "rig_tui_history::TuiHistoryPlugin"
+
+[[plugin]]
+crate = "rig-tui-tools"
+path = "../crates/rig-tui-tools"
+plugin = "rig_tui_tools::TuiToolsPlugin"
+
+[[plugin]]
+crate = "rig-tui-loading"
+path = "../crates/rig-tui-loading"
+plugin = "rig_tui_loading::TuiLoadingPlugin"
+
+[[plugin]]
+crate = "rig-tui-games"
+path = "../crates/rig-tui-games"
+plugin = "rig_tui_games::TuiGamesPlugin"

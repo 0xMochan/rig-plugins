@@ -1,0 +1,40 @@
+# Rust build output, including nested scratch projects.
+target/
+
+# Local Rig/T3 state and generated tool caches. profile/ has its own allowlist.
+/.local/
+/.rig/
+/t3code/
+/xcrun_db
+/xcrun_db-*
+
+# Local environment and private key files; keep example configuration public.
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Python tooling and worker caches.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# OS metadata and editor temporary files.
+.DS_Store
+._*
+*.swp
+*.swo
+*~
+
+# Local-only research, planning, installation and validation notes.
+# Public READMEs, docs/rust-design.md and runtime prompt Markdown stay tracked.
+/docs/research/

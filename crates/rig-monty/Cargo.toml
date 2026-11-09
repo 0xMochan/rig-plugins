@@ -1,0 +1,29 @@
+[package]
+name = "rig-monty"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Process-isolated Python code mode with ordinary gated Rig tool effects"
+readme = "README.md"
+
+[dependencies]
+rig-harness.workspace = true
+bevy_ecs.workspace = true
+bevy_tasks.workspace = true
+monty-pool.workspace = true
+monty-types.workspace = true
+tokio.workspace = true
+async-channel.workspace = true
+futures-channel.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+bevy_app.workspace = true
+tempfile.workspace = true
+shell-words.workspace = true
+
+[lints]
+workspace = true

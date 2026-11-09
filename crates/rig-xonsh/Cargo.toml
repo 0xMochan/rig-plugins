@@ -1,0 +1,24 @@
+[package]
+name = "rig-xonsh"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "A focused Python-plus-shell frontend over Monty and gated Rig tools"
+readme = "README.md"
+
+[dependencies]
+rig-harness.workspace = true
+rig-monty.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+tempfile.workspace = true
+rig-bashkit.workspace = true
+
+[lints]
+workspace = true

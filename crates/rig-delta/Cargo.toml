@@ -1,0 +1,33 @@
+[package]
+name = "rig-delta"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Native Delta CLI tools and consented multiplayer Rig sessions"
+readme = "README.md"
+
+[features]
+default = []
+tui = ["dep:rig-tui"]
+
+[dependencies]
+rig-harness.workspace = true
+rig-basics.workspace = true
+rig-native-shell.workspace = true
+rig-tui = { workspace = true, optional = true }
+bevy_ecs.workspace = true
+bevy_reflect.workspace = true
+rustix = { version = "1.1", features = ["fs", "process"] }
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+shell-words.workspace = true
+tempfile.workspace = true
+
+[dev-dependencies]
+bevy_app.workspace = true
+bevy_tasks.workspace = true
+
+[lints]
+workspace = true

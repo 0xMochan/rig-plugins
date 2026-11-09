@@ -1,0 +1,42 @@
+#!/bin/sh
+set -eu
+
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+target="$repo/profile/tools/bin/codex-sandbox"
+expected='codex-cli 0.142.0'
+
+# Preserve a compatible existing profile installation across PATH/version changes.
+if [ -z "${CODEX_SANDBOX_BIN:-}" ] && [ -x "$target" ] && [ "$(/usr/bin/env -i "$target" --version 2>/dev/null)" = "$expected" ]; then
+    echo "Codex sandbox ready: $target"
+    exit 0
+fi
+
+source_bin=${CODEX_SANDBOX_BIN:-}
+if [ -z "$source_bin" ] && [ -x "$HOME/.codex/packages/standalone/current/bin/codex" ]; then
+    source_bin="$HOME/.codex/packages/standalone/current/bin/codex"
+fi
+if [ -z "$source_bin" ]; then
+    source_bin=$(command -v codex) || {
+        echo "Set CODEX_SANDBOX_BIN to a trusted native codex-cli 0.142.0 executable." >&2
+        exit 1
+    }
+fi
+case "$source_bin" in
+    /*) ;;
+    *) echo "CODEX_SANDBOX_BIN must be an absolute executable path." >&2; exit 1 ;;
+esac
+version=$(/usr/bin/env -i "$source_bin" --version) || {
+    echo "Cannot run $source_bin with a cleared environment; select the native binary, not an npm wrapper." >&2
+    exit 1
+}
+if [ "$version" != "$expected" ]; then
+    echo "Expected $expected from $source_bin; found: $version" >&2
+    exit 1
+fi
+mkdir -p "$(dirname -- "$target")"
+temporary="$target.setup-$$"
+trap 'rm -f -- "$temporary"' EXIT HUP INT TERM
+cp -- "$source_bin" "$temporary"
+chmod 755 "$temporary"
+mv -f -- "$temporary" "$target"
+echo "Codex sandbox ready: $target"

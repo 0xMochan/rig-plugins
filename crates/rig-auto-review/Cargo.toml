@@ -1,0 +1,24 @@
+[package]
+name = "rig-auto-review"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Independent, fail-closed review of explicit native shell escalations"
+readme = "README.md"
+
+[dependencies]
+rig-harness.workspace = true
+rig-native-shell.workspace = true
+bevy_ecs.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+rig-core = { version = "=0.46.0", features = ["test-utils"] }
+futures = "0.3"
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,2 @@
+# Upstream's compiled Rust worker, packaged as a binary wheel. No CPython VM.
+pydantic-monty-runtime==1.4.0

@@ -1,0 +1,23 @@
+[package]
+name = "rig-checkpoint-tasks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Checkpoint context by default for Rig's task tool"
+readme = "README.md"
+
+[dependencies]
+rig-harness.workspace = true
+rig-basics.workspace = true
+rig-checkpoint.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+rig-core = { version = "=0.46.0", features = ["test-utils"] }
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,9 @@
+*
+!.gitignore
+!plugins.toml
+!settings.toml
+!AGENTS.md
+!README.md
+!project/
+project/*
+!project/Cargo.lock

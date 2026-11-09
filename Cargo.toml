@@ -1,0 +1,66 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.98.1"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+rig-harness = "=0.46.0"
+rig-tools = "=0.46.0"
+rig-basics = { version = "=0.46.0", default-features = false }
+rig-tui = "=0.46.0"
+unicode-width = "0.2"
+bevy_app = "=0.20.0"
+bevy_ecs = "=0.20.0"
+bevy_reflect = "=0.20.0"
+bevy_tasks = "=0.20.0"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "1"
+thiserror = "2"
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "process", "io-util"] }
+shell-words = "1"
+bashkit = { version = "=0.20.3", default-features = false }
+rig-command = { path = "crates/rig-command" }
+rig-native-shell = { path = "crates/rig-native-shell" }
+rig-auto-review = { path = "crates/rig-auto-review" }
+rig-bashkit = { path = "crates/rig-bashkit" }
+rig-profile = { path = "crates/rig-profile" }
+rig-monty = { path = "crates/rig-monty" }
+rig-xonsh = { path = "crates/rig-xonsh" }
+rig-tui-scroll = { path = "crates/rig-tui-scroll" }
+rig-tui-history = { path = "crates/rig-tui-history" }
+rig-tui-tools = { path = "crates/rig-tui-tools" }
+rig-tui-loading = { path = "crates/rig-tui-loading" }
+rig-tui-games = { path = "crates/rig-tui-games" }
+rig-checkpoint = { path = "crates/rig-checkpoint" }
+rig-checkpoint-tasks = { path = "crates/rig-checkpoint-tasks" }
+rig-conversation = { path = "crates/rig-conversation" }
+rig-delta = { path = "crates/rig-delta" }
+monty-pool = "=1.4.0"
+monty-types = "=1.4.0"
+async-channel = "2"
+futures-channel = "0.3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+await_holding_lock = "deny"
+# Bevy's by-value system parameters and query tuples are the framework API.
+type_complexity = "allow"
+too_many_arguments = "allow"
+
+[profile.dev]
+debug = 1
+
+[profile.dev.package."*"]
+debug = false

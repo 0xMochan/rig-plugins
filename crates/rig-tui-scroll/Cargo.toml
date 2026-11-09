@@ -1,0 +1,18 @@
+[package]
+name = "rig-tui-scroll"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Mouse and trackpad transcript scrolling for Rig's native TUI"
+readme = "README.md"
+
+[dependencies]
+rig-harness.workspace = true
+rig-tui.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

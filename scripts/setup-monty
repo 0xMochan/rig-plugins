@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+tools="$repo/profile/tools"
+command -v uv >/dev/null 2>&1 || { echo "Install uv before setting up the Monty worker." >&2; exit 1; }
+if [ ! -x "$tools/bin/python" ]; then
+    uv venv "$tools"
+fi
+# This wheel installs a compiled Rust executable in bin/. Python only hosts the
+# installation environment; the worker never runs CPython or project code.
+uv pip install --python "$tools/bin/python" --only-binary :all: --no-deps \
+    --require-hashes -r "$repo/scripts/monty-requirements.txt"
+version=$("$tools/bin/monty" --version)
+if [ "$version" != "monty-runtime 1.4.0" ]; then
+    echo "Expected monty-runtime 1.4.0, found: $version" >&2
+    exit 1
+fi
+echo "Monty worker ready: $tools/bin/monty"

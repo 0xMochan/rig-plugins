@@ -1,0 +1,18 @@
+[package]
+name = "rig-checkpoint"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Conversation checkpoints for Rig's existing child-agent lifecycle"
+readme = "README.md"
+
+[dependencies]
+rig-harness.workspace = true
+rig-basics.workspace = true
+bevy_ecs.workspace = true
+bevy_reflect.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true
