@@ -5,6 +5,7 @@ use futures_channel::oneshot;
 use rig_harness::prelude::*;
 use rig_harness::rig_core::message::{ToolFunction, ToolName};
 use rig_harness::rig_core::tool::ToolResult;
+use rig_native_shell::{NativeCommandRequest, NativeExecution, NativeXonshParent};
 use serde::Serialize;
 use serde_json::Value;
 use std::io::{self, Write};
@@ -27,9 +28,19 @@ impl Default for Requests {
 struct Request {
     parent: Entity,
     agent: Entity,
-    name: String,
-    arguments: Value,
+    operation: Operation,
     answer: oneshot::Sender<Result<Value, String>>,
+}
+
+enum Operation {
+    Tool {
+        name: String,
+        arguments: Value,
+    },
+    Native {
+        pipeline: Vec<Vec<String>>,
+        execution: NativeExecution,
+    },
 }
 
 pub(crate) struct Host {
@@ -37,15 +48,23 @@ pub(crate) struct Host {
     wake: Wake,
     parent: Entity,
     agent: Entity,
+    native: Option<NativeExecution>,
 }
 
 impl Host {
-    pub(crate) fn new(requests: &Requests, wake: Wake, parent: Entity, agent: Entity) -> Self {
+    pub(crate) fn new(
+        requests: &Requests,
+        wake: Wake,
+        parent: Entity,
+        agent: Entity,
+        native: Option<NativeExecution>,
+    ) -> Self {
         Self {
             sender: requests.sender.clone(),
             wake,
             parent,
             agent,
+            native,
         }
     }
 
@@ -58,13 +77,32 @@ impl Host {
         if !arguments.is_object() {
             return Err("tool arguments must be a JSON object".to_owned());
         }
+        self.request(Operation::Tool {
+            name: name.to_owned(),
+            arguments,
+        })
+        .await
+    }
+
+    pub(crate) async fn native(&self, pipeline: Vec<Vec<String>>) -> Result<Value, String> {
+        let execution = self
+            .native
+            .clone()
+            .ok_or("native shell forms are available only to the native xonsh frontend")?;
+        self.request(Operation::Native {
+            pipeline,
+            execution,
+        })
+        .await
+    }
+
+    async fn request(&self, operation: Operation) -> Result<Value, String> {
         let (answer, receiver) = oneshot::channel();
         self.sender
             .send(Request {
                 parent: self.parent,
                 agent: self.agent,
-                name: name.to_owned(),
-                arguments,
+                operation,
                 answer,
             })
             .await
@@ -85,7 +123,13 @@ pub(crate) struct HostCall {
 pub(crate) fn dispatch(
     requests: Res<Requests>,
     parents: Query<
-        (&ForAgent, &Decision, Option<&CallOf>),
+        (
+            &ForAgent,
+            &Decision,
+            Option<&CallOf>,
+            Option<&NativeXonshParent>,
+            Option<&ToolRequest>,
+        ),
         (
             With<Started>,
             With<Running>,
@@ -93,6 +137,7 @@ pub(crate) fn dispatch(
             Without<Outcome>,
         ),
     >,
+    access: Query<&ToolAccess>,
     mut commands: Commands,
 ) {
     // Bound main-thread work even when many programs are waiting.
@@ -106,23 +151,49 @@ pub(crate) fn dispatch(
         let parent = parents
             .get(request.parent)
             .ok()
-            .filter(|(owner, decision, _)| owner.0 == request.agent && !decision.is_decided());
-        let Some((_, _, turn)) = parent else {
+            .filter(|(owner, decision, _, _, _)| {
+                owner.0 == request.agent && !decision.is_decided()
+            });
+        let Some((_, _, turn, native, parent_request)) = parent else {
             let _ = request
                 .answer
                 .send(Err("the interpreter call ended".to_owned()));
             continue;
         };
-        let name = match ToolName::new(request.name) {
-            Ok(name) => name,
+        let prepared = match request.operation {
+            Operation::Tool { name, arguments } => match ToolName::new(name) {
+                Ok(name) => Ok(ChildRequest::Tool(ToolRequest {
+                    call: ToolCall::from_wire("", ToolFunction::new(name, arguments)),
+                })),
+                Err(error) => Err(error.to_string()),
+            },
+            Operation::Native {
+                pipeline,
+                execution,
+            } => {
+                let allowed = native.is_some_and(|native| {
+                    native.matches(request.parent, request.agent, &execution)
+                }) && parent_request
+                    .is_some_and(|request| request.call.function.name.as_str() == "run_xonsh")
+                    && access
+                        .get(request.agent)
+                        .is_ok_and(|access| access.allows("run_xonsh"));
+                if allowed {
+                    NativeCommandRequest::for_xonsh(request.parent, pipeline, execution)
+                        .map(ChildRequest::Native)
+                } else {
+                    Err("the native xonsh command capability is no longer current".to_owned())
+                }
+            }
+        };
+        let prepared = match prepared {
+            Ok(prepared) => prepared,
             Err(error) => {
-                let _ = request.answer.send(Err(error.to_string()));
+                let _ = request.answer.send(Err(error));
                 continue;
             }
         };
-        let call = ToolCall::from_wire("", ToolFunction::new(name, request.arguments));
         let mut child = commands.spawn((
-            ToolRequest { call },
             ForAgent(request.agent),
             ChildOf(request.parent),
             HostCall {
@@ -130,10 +201,23 @@ pub(crate) fn dispatch(
                 answer: Some(request.answer),
             },
         ));
+        match prepared {
+            ChildRequest::Tool(request) => {
+                child.insert(request);
+            }
+            ChildRequest::Native(request) => {
+                child.insert(request);
+            }
+        }
         if let Some(turn) = turn {
             child.insert(CallOf(turn.0));
         }
     }
+}
+
+enum ChildRequest {
+    Tool(ToolRequest),
+    Native(NativeCommandRequest),
 }
 
 pub(crate) fn bind_owner(

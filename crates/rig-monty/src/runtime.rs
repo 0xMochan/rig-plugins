@@ -133,17 +133,23 @@ async fn execute(
                 allow_eager_await,
                 ..
             } => {
-                if function_name != "tool" || object_id.is_some() {
-                    return Err(
-                        "only the plain tool(name, arguments) host function is supported"
-                            .to_owned(),
-                    );
+                if object_id.is_some() {
+                    return Err("host methods are not supported".to_owned());
                 }
                 if allow_eager_await {
                     return Err("asynchronous host calls are not supported".to_owned());
                 }
-                let (name, arguments) = tool_arguments(&args)?;
-                let answer = host.call(&name, arguments).await?;
+                let answer = match function_name.as_str() {
+                    "tool" => {
+                        let (name, arguments) = tool_arguments(&args)?;
+                        host.call(&name, arguments).await?
+                    }
+                    "__rig_xonsh_native" => {
+                        let pipeline = native_arguments(&args)?;
+                        host.native(pipeline).await?
+                    }
+                    _ => return Err("unsupported interpreter host function".to_owned()),
+                };
                 let answer = values::from_json(&answer, MAX_JSON_BYTES)?;
                 session
                     .resume(ResumeValue::Return(answer), &mut on_print)
@@ -151,7 +157,7 @@ async fn execute(
             }
             TurnEvent::OsCall { .. } => {
                 // Do not service mounts, imports, environment or filesystem
-                // operations. Native work must be a separately gated Rig tool.
+                // operations. Native work must be a separately gated command effect.
                 session.resume(ResumeValue::NotHandled, &mut on_print).await
             }
             TurnEvent::NameLookup { .. } => {
@@ -170,6 +176,16 @@ async fn execute(
         }
         .map_err(|error| error.to_string())?;
     }
+}
+
+fn native_arguments(args: &CallArgs) -> Result<Vec<Vec<String>>, String> {
+    if args.args().len() != 1 || args.kwargs().len() != 0 {
+        return Err("the native xonsh host operation requires one argv pipeline".to_owned());
+    }
+    let pipeline = args.arg(0).ok_or("native argv pipeline is missing")?;
+    let pipeline = values::to_json(pipeline, MAX_JSON_BYTES)?;
+    serde_json::from_value(pipeline)
+        .map_err(|_| "native pipeline must contain lists of string arguments".to_owned())
 }
 
 fn tool_arguments(args: &CallArgs) -> Result<(String, Value), String> {

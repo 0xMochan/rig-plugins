@@ -1,0 +1,16 @@
+[package]
+name = "rig-model-catelog"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Day-one model catalog additions for Rig's shared ACP and terminal model picker"
+
+[dependencies]
+rig-harness.workspace = true
+
+[dev-dependencies]
+rig-core = { version = "=0.46.0", features = ["test-utils"] }
+
+[lints]
+workspace = true

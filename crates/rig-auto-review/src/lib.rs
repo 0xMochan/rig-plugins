@@ -20,6 +20,7 @@ pub struct AutoReviewPlugin;
 
 impl Plugin for AutoReviewPlugin {
     fn build(&self, app: &mut App) {
+        rig_native_shell::configure_gate_order(app);
         status::install(app);
         if !app.is_plugin_added::<ClockPlugin>() {
             app.add_plugins(ClockPlugin);

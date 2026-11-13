@@ -33,8 +33,16 @@ select `rig_tui_loading::TuiLoadingPlugin` alongside `rig_tui::TuiPlugin` (or
 `TuiViewPlugin` with your own screen). Plugin ordering does not matter for the
 default screen. It installs Rig's stock `ActivityPlugin` if absent; it does not
 install a frontend, welcome banner or execution capability. Without a TUI view
-it is inert. The repository's `RigProfilePlugin` includes it under the default
-`tui` feature, and `profile/plugins.toml` lists it for independent selection.
+it is inert. Add it explicitly to your existing global `~/.rig/plugins.toml`:
+
+```toml
+[[plugin]]
+crate = "rig-tui-loading"
+path = "/absolute/path/to/rig-plugins/crates/rig-tui-loading"
+plugin = "rig_tui_loading::TuiLoadingPlugin"
+```
+
+Run `rig plugin check` and `rig build`, then restart/reload Rig.
 
 For reduced motion in your Rig settings:
 

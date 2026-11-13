@@ -15,6 +15,8 @@ tui = ["dep:rig-tui"]
 rig-harness.workspace = true
 rig-basics.workspace = true
 rig-native-shell.workspace = true
+rig-workspace.workspace = true
+rig-conversation.workspace = true
 rig-tui = { workspace = true, optional = true }
 bevy_ecs.workspace = true
 bevy_reflect.workspace = true
@@ -26,6 +28,7 @@ shell-words.workspace = true
 tempfile.workspace = true
 
 [dev-dependencies]
+rig-auto-review.workspace = true
 bevy_app.workspace = true
 bevy_tasks.workspace = true
 

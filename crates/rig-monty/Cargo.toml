@@ -9,6 +9,7 @@ readme = "README.md"
 
 [dependencies]
 rig-harness.workspace = true
+rig-native-shell.workspace = true
 bevy_ecs.workspace = true
 bevy_tasks.workspace = true
 monty-pool.workspace = true

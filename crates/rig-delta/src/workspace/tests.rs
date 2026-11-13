@@ -309,6 +309,9 @@ fn real_descendants_inherit_scope_but_copied_root_identity_does_not() {
     let child_scope = app.world().get::<LiveWorkspace>(child).unwrap();
     assert_eq!(child_scope.owner(), child_id);
     assert!(child_scope.allows(child_id, &fixture.two));
+    let boundary = app.world().get::<WorkDirScope>(child).unwrap();
+    assert!(boundary.allows(child_id, &fixture.two));
+    assert!(!boundary.allows(child_id, &fixture.outside));
     assert_eq!(
         app.world()
             .get::<ScopedProjectInstructions>(child)
@@ -325,6 +328,27 @@ fn real_descendants_inherit_scope_but_copied_root_identity_does_not() {
         app.world()
             .get::<ScopedProjectInstructions>(copied)
             .is_none()
+    );
+    let copied_id = app.world().get::<AgentId>(copied).unwrap();
+    assert!(
+        !app.world()
+            .get::<WorkDirScope>(copied)
+            .unwrap()
+            .allows(copied_id, &fixture.one)
+    );
+    let copied_child = app
+        .world_mut()
+        .spawn((Agent, SpawnedBy(copied), WorkDir(fixture.outside.clone())))
+        .id();
+    app.world_mut().flush();
+    assert!(
+        !app.world()
+            .get::<WorkDirScope>(copied_child)
+            .unwrap()
+            .allows(
+                app.world().get::<AgentId>(copied_child).unwrap(),
+                &fixture.outside
+            )
     );
     let copied_call = model_request(&mut app, copied);
     app.world_mut().run_system_once(apply_prompt).unwrap();
@@ -343,4 +367,11 @@ fn real_descendants_inherit_scope_but_copied_root_identity_does_not() {
             .get::<ScopedProjectInstructions>(child)
             .is_none()
     );
+    for agent in [root, child] {
+        let id = app.world().get::<AgentId>(agent).unwrap();
+        let boundary = app.world().get::<WorkDirScope>(agent).unwrap();
+        assert!(!boundary.allows(id, &fixture.one));
+        assert!(!boundary.allows(id, &fixture.outside));
+        assert!(!boundary.allows(id, &app.world().resource::<ProjectRoot>().0));
+    }
 }

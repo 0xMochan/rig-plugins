@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use rig_harness::prelude::*;
 use rig_harness::rig_core::completion::Section;
 use rig_native_shell::ScopedProjectInstructions;
+use rig_workspace::{WorkDirScope, WorkspaceSystems};
 
 const MAX_ROOTS: usize = 32;
 const MAX_INSTRUCTION_BYTES: usize = 256 * 1024;
@@ -296,19 +297,26 @@ fn xml_path(path: &Path) -> String {
 }
 
 pub(crate) fn install(app: &mut App) {
-    app.add_observer(bind_scope)
-        .add_observer(inherit_scope)
-        .add_observer(remove_scope)
-        .add_systems(
-            AgentPass,
-            apply_prompt
-                .in_set(PrepareSystems::Edit)
-                .in_set(crate::DeltaSystems::WorkspacePrompt),
-        );
+    rig_workspace::configure_gate_order(app);
+    app.configure_sets(
+        AgentPass,
+        crate::DeltaSystems::Ownership.after(WorkspaceSystems::Gate),
+    )
+    .add_observer(bind_scope)
+    .add_observer(inherit_scope)
+    .add_observer(remove_scope)
+    .add_systems(
+        AgentPass,
+        apply_prompt
+            .in_set(PrepareSystems::Edit)
+            .in_set(crate::DeltaSystems::WorkspacePrompt)
+            .after(rig_conversation::ConversationPrompt),
+    );
 }
 
 // Installing a scope is the controller's post-confirmation transition. Its
-// restriction component and the model prompt both derive from this one value.
+// directory boundary, restrictions and model prompt derive from this one value.
+// A stale/copy-bound scope installs a denial, never an ordinary-project fallback.
 fn bind_scope(
     inserted: On<Insert<LiveWorkspace>>,
     agents: Query<(&AgentId, &LiveWorkspace)>,
@@ -318,7 +326,22 @@ fn bind_scope(
     let Ok((id, scope)) = agents.get(inserted.entity) else {
         return;
     };
+    let roots: Vec<_> = scope.roots.iter().map(|(_, root)| root.clone()).collect();
+    let boundary = WorkDirScope::trusted_worktrees(scope.owner(), &roots)
+        .unwrap_or_else(|_| WorkDirScope::denied());
+    commands.entity(inserted.entity).insert(boundary);
     if scope.owner() != id {
+        commands
+            .entity(inserted.entity)
+            .try_remove::<ScopedProjectInstructions>();
+        for (child, _, parent, _) in &children {
+            if parent.0 == inserted.entity {
+                commands
+                    .entity(child)
+                    .try_remove::<LiveWorkspace>()
+                    .insert(WorkDirScope::denied());
+            }
+        }
         return;
     }
     commands
@@ -351,6 +374,7 @@ fn inherit_scope(
         return;
     };
     if scope.owner() != parent_id {
+        commands.entity(added.entity).insert(WorkDirScope::denied());
         return;
     }
     let inherited = scope.for_child(id);
@@ -366,7 +390,8 @@ fn remove_scope(
 ) {
     commands
         .entity(removed.entity)
-        .try_remove::<ScopedProjectInstructions>();
+        .try_remove::<ScopedProjectInstructions>()
+        .try_insert(WorkDirScope::denied());
     for (child, parent) in &children {
         if parent.0 == removed.entity {
             commands.entity(child).remove::<LiveWorkspace>();

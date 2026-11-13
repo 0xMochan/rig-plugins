@@ -87,12 +87,7 @@ pub(crate) fn request(
             Option<&CallOf>,
             &mut Decision,
         ),
-        (
-            ReadyToStart,
-            ToolCalls,
-            Without<ReviewStarted>,
-            Without<ReviewPermit>,
-        ),
+        (ReadyToStart, Without<ReviewStarted>, Without<ReviewPermit>),
     >,
     config: Res<ReviewConfig>,
     models: Res<Models>,
@@ -171,7 +166,7 @@ pub(crate) fn apply(
         (Entity, &ReviewJob, &Outcome, &ForAgent),
         (ReadyToSettle, ModelCalls, With<HoldOf>),
     >,
-    mut calls: Query<(&PendingCommand, &mut Decision), ToolCalls>,
+    mut calls: Query<(&PendingCommand, &mut Decision)>,
     authorization: Authorization,
     mut commands: Commands,
 ) {

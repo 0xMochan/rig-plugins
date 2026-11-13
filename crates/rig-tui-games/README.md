@@ -45,8 +45,9 @@ plugin = "rig_tui_games::TuiGamesPlugin"
 ```
 
 Select `rig_tui::TuiPlugin` separately. The games plugin works before or after
-it in the plugin list. A composition with other input filters should put
-`rig_tui_games::GamesInput` first; the supplied profile already does this.
+it in the plugin list. The repository's input filters respect event and focus
+ownership rather than requiring a bundled total ordering. Custom filters that
+consume game input can order themselves after `rig_tui_games::GamesInput`.
 The plugin registers no commands without `TuiViewPlugin`, and game commands
 refuse a run without a terminal surface.
 

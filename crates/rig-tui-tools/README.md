@@ -36,10 +36,9 @@ stable transcript selection yet, but still receive bounded readable previews.
 Drags and modified clicks do not fold calls. Transcript exports always include
 the full retained content, regardless of interactive folds.
 
-Mouse reporting comes from `rig-tui-scroll`, already enabled in the main and
-standalone profiles, or another reporting owner in a custom composition.
-Keep Shift held while dragging in Ghostty to select text. The display plugin
-does not change terminal mouse modes itself.
+Mouse reporting requires a separately selected `rig-tui-scroll` plugin or
+another reporting owner. Keep Shift held while dragging in Ghostty to select
+text. The display plugin does not change terminal mouse modes itself.
 
 ## Use independently
 
@@ -52,9 +51,9 @@ path = "/absolute/path/to/rig-plugins/crates/rig-tui-tools"
 plugin = "rig_tui_tools::TuiToolsPlugin"
 ```
 
-The personal `RigProfilePlugin` already includes it with its default `tui`
-feature. An independently listed duplicate is skipped by Rig's loader.
-Optional settings in the selected Rig home's `settings.toml`:
+Add the entry to your existing global `~/.rig/plugins.toml`, run
+`rig plugin check` and `rig build`, then restart/reload Rig. Optional settings
+belong in your Rig home's `settings.toml`:
 
 ```toml
 [tui_tools]

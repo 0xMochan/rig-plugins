@@ -10,11 +10,11 @@ path = "/absolute/path/to/rig-plugins/crates/rig-conversation"
 plugin = "rig_conversation::ConversationPlugin"
 ```
 
-In Rust, add `ConversationPlugin` alongside `AgentPlugin`. It installs Rig's
-`DefaultPromptPlugin` if absent. The personal `RigProfilePlugin` includes it
-already, with the normal registration guard against duplicate installations.
-Rebuild and restart/reload the agent to apply it; this does not change an
-already-running binary.
+Add this entry to your existing global `~/.rig/plugins.toml`, then run
+`rig plugin check` and `rig build`. In Rust, add `ConversationPlugin` alongside
+`AgentPlugin`. It installs Rig's `DefaultPromptPlugin` if absent, with the normal
+registration guard against duplicate installations. Restart/reload Rig to apply
+it; source edits do not change an already-running binary.
 
 ## Behavior
 

@@ -396,7 +396,7 @@ fn run(root: &Path, mut manifest: Value) -> Result<Value, String> {
         }
         manifest["joined"] = b.artifact(joined);
         manifest["checks"] = json!({"private_visibility":true,"opened_delta_app":true,"fresh_rig_join":true,"real_append_watch_context":true,"real_file_handoff":true,
-            "claude_handoff":"blocked: Claude auth status reported no login; no keychain access/login performed","model_calls":0});
+            "claude_handoff":"not exercised by this transport-only harness; existing Claude API-key authentication is available through the user's normal shell, not Rig's filtered command environment","model_calls":0});
         Ok(manifest.clone())
     })();
     a.stop();

@@ -2055,7 +2055,14 @@ fn ownership_gate(
             Option<&ToolRequest>,
             Has<TurnCall>,
         ),
-        (ReadyToStart, Or<(With<ModelRequest>, With<ToolRequest>)>),
+        (
+            ReadyToStart,
+            Or<(
+                With<ModelRequest>,
+                With<ToolRequest>,
+                With<rig_workspace::WorkspaceOperation>,
+            )>,
+        ),
     >,
     bindings: Query<&Binding>,
     parents: Query<&SpawnedBy>,

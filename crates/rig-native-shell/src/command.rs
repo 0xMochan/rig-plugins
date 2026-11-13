@@ -1,6 +1,8 @@
 //! Prepared command contracts and the gates that freeze and enforce them.
 
-use crate::{Authorization, Executor, NATIVE_SHELL, ShellConfig, UserEvidence, refuse};
+use crate::{
+    Authorization, Executor, NATIVE_SHELL, NativeCommandRequest, ShellConfig, UserEvidence, refuse,
+};
 use rig_command::PreparedCommand;
 use rig_harness::prelude::*;
 use schemars::JsonSchema;
@@ -21,13 +23,18 @@ pub(crate) struct ShellArgs {
     justification: Option<String>,
 }
 
-/// The immutable action judged by a reviewer and later executed by the shell.
-/// Only the shell plugin constructs it from the final tool request.
+/// The immutable action judged by a reviewer and consumed by the native runtime.
+/// The runtime constructs it from the final public tool or typed pipeline request,
+/// binding the owning effect, agent and any originating xonsh invocation.
 #[derive(Component, Clone, Debug, PartialEq, Eq, Serialize)]
 #[component(immutable)]
 pub struct PendingCommand {
     #[serde(skip)]
     call: Entity,
+    #[serde(skip)]
+    agent: Entity,
+    #[serde(skip)]
+    xonsh_parent: Option<Entity>,
     command: PreparedCommand,
     arguments: serde_json::Map<String, serde_json::Value>,
     base: PathBuf,
@@ -40,8 +47,8 @@ impl PendingCommand {
     pub fn command(&self) -> &PreparedCommand {
         &self.command
     }
-    pub(crate) fn is_call(&self, call: Entity) -> bool {
-        self.call == call
+    pub(crate) fn is_call_for(&self, call: Entity, agent: Entity) -> bool {
+        self.call == call && self.agent == agent
     }
     pub(crate) fn into_command(self) -> PreparedCommand {
         self.command
@@ -68,8 +75,9 @@ impl PendingCommand {
         &self,
         arguments: &serde_json::Map<String, serde_json::Value>,
         base: &Path,
+        xonsh_parent: Option<Entity>,
     ) -> bool {
-        self.arguments == *arguments && self.base == base
+        self.arguments == *arguments && self.base == base && self.xonsh_parent == xonsh_parent
     }
 }
 
@@ -101,32 +109,67 @@ impl ReviewPermit {
     }
 }
 
+/// Read the current immutable typed request or optional public tool arguments.
+/// A mixed request is invalid rather than choosing one authority path.
+pub(crate) fn arguments<'a>(
+    tool: Option<&'a ToolRequest>,
+    native: Option<&'a NativeCommandRequest>,
+) -> Result<Option<&'a serde_json::Map<String, serde_json::Value>>, String> {
+    match (tool, native) {
+        (Some(_), Some(_)) => Err("A native command cannot also be a tool request.".to_owned()),
+        (None, Some(native)) => Ok(Some(native.arguments())),
+        (Some(tool), None) if tool.call.function.name.as_str() == NATIVE_SHELL => {
+            Ok(Some(&tool.call.function.arguments))
+        }
+        _ => Ok(None),
+    }
+}
+
 pub(crate) fn freeze(
     mut calls: Query<
         (
             Entity,
-            &ToolRequest,
-            &ForAgent,
+            Option<&ToolRequest>,
+            Option<&NativeCommandRequest>,
+            Option<&ForAgent>,
             Option<&PendingCommand>,
             &mut Decision,
         ),
-        (ReadyToStart, ToolCalls),
+        (
+            ReadyToStart,
+            Or<(With<ToolRequest>, With<NativeCommandRequest>)>,
+        ),
     >,
-    dirs: Query<&WorkDir>,
+    agents: Query<(&AgentId, Option<&WorkDir>), With<Agent>>,
     root: Res<ProjectRoot>,
     executor: Res<Executor>,
     config: Res<ShellConfig>,
     mut commands: Commands,
 ) {
-    for (call, request, &ForAgent(agent), frozen, mut decision) in &mut calls {
-        if request.call.function.name.as_str() != NATIVE_SHELL || decision.is_decided() {
+    for (call, tool, native, owner, frozen, mut decision) in &mut calls {
+        if decision.is_decided() {
             continue;
         }
-        let base = dirs
-            .get(agent)
-            .map_or(root.0.as_path(), |work| work.0.as_path());
+        let arguments = match arguments(tool, native) {
+            Ok(Some(arguments)) => arguments,
+            Ok(None) => continue,
+            Err(error) => {
+                refuse(&mut decision, error);
+                continue;
+            }
+        };
+        let Some(&ForAgent(agent)) = owner else {
+            refuse(&mut decision, "A native command requires an owning agent.");
+            continue;
+        };
+        let Ok((_, directory)) = agents.get(agent) else {
+            refuse(&mut decision, "A native command requires a live Rig agent.");
+            continue;
+        };
+        let base = directory.map_or(root.0.as_path(), |work| work.0.as_path());
+        let xonsh_parent = native.and_then(NativeCommandRequest::xonsh_parent);
         if let Some(frozen) = frozen {
-            if !frozen.matches(&request.call.function.arguments, base) {
+            if !frozen.is_call_for(call, agent) || !frozen.matches(arguments, base, xonsh_parent) {
                 refuse(
                     &mut decision,
                     "The command changed after preparation. Submit a new call.",
@@ -136,7 +179,9 @@ pub(crate) fn freeze(
         }
         let prepared = prepare(
             call,
-            &request.call.function.arguments,
+            agent,
+            xonsh_parent,
+            arguments,
             base,
             &executor,
             &config,
@@ -152,6 +197,8 @@ pub(crate) fn freeze(
 
 fn prepare(
     call: Entity,
+    agent: Entity,
+    xonsh_parent: Option<Entity>,
     arguments: &serde_json::Map<String, serde_json::Value>,
     base: &Path,
     executor: &Executor,
@@ -191,6 +238,8 @@ fn prepare(
         .map_err(|error| error.to_string())?;
     Ok(PendingCommand {
         call,
+        agent,
+        xonsh_parent,
         command,
         arguments: arguments.clone(),
         base: base.to_owned(),
@@ -207,7 +256,7 @@ pub(crate) fn require_permit(
             &ForAgent,
             &mut Decision,
         ),
-        (ReadyToStart, ToolCalls),
+        ReadyToStart,
     >,
     authorization: Authorization,
 ) {

@@ -10,15 +10,20 @@ readme = "README.md"
 [dependencies]
 rig-harness.workspace = true
 rig-monty.workspace = true
+rig-native-shell.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+rig-core = { version = "=0.46.0", features = ["test-utils"] }
+rig-auto-review.workspace = true
+futures = "0.3"
 bevy_app.workspace = true
 bevy_ecs.workspace = true
 tempfile.workspace = true
 rig-bashkit.workspace = true
+rig-workspace.workspace = true
 
 [lints]
 workspace = true

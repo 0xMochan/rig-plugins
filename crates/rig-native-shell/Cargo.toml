@@ -10,11 +10,13 @@ readme = "README.md"
 [dependencies]
 rig-command.workspace = true
 rig-harness.workspace = true
+rig-workspace.workspace = true
 bevy_ecs.workspace = true
 bevy_tasks.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+shell-words.workspace = true
 thiserror.workspace = true
 
 [lints]

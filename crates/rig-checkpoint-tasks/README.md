@@ -12,7 +12,8 @@ path = "/absolute/path/to/rig-plugins/crates/rig-checkpoint-tasks"
 plugin = "rig_checkpoint_tasks::CheckpointTasksPlugin"
 ```
 
-The personal `RigProfilePlugin` already includes this plugin.
+Add this entry to your existing global `~/.rig/plugins.toml`, then run
+`rig plugin check` and `rig build`. Restart/reload Rig to apply the new build.
 
 ```json
 {"description":"Inspect parser failure","prompt":"Find the E_417 cause and return concrete evidence."}

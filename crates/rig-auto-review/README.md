@@ -1,20 +1,38 @@
 # rig-auto-review
 
-`AutoReviewPlugin` independently reviews explicit `native_shell` escalations.
-It never installs `NativeShellPlugin` or enables an execution tool. The host
-must select native execution separately; with native execution disabled the
-reviewer cannot execute commands. Its read-only capacity diagnostics remain
-available. Loading an approval policy must not restore disabled authority.
+`AutoReviewPlugin` independently reviews explicit escalations of frozen native
+commands. It works with xonsh's typed native command effects and the optional
+public `native_shell` frontend. It installs neither `NativeCommandRuntimePlugin`
+nor `NativeShellPlugin`, and enables no execution tool. With the native runtime
+absent, there are no prepared native commands to approve; read-only capacity
+diagnostics remain available. Loading approval policy must not restore disabled
+authority.
 
 The execution paths are explicit:
 
 - xonsh `backend: "virtual"` calls `virtual_bash` (Bashkit's isolated in-memory
   filesystem), without native execution or escalation.
-- xonsh `backend: "native"` calls the separately enabled `native_shell` under
-  its OS sandbox. Bashkit is not the native process sandbox.
-- An explicit `native_shell` call with `escalate: true` and a justification
-  requests review of that exact command outside the OS sandbox. xonsh has no
-  automatic escalation or fallback after failure.
+- xonsh `backend: "native"` uses `NativeCommandRuntimePlugin` directly, normally
+  under its OS sandbox. It needs no public `native_shell` tool. Bashkit is not
+  the native process sandbox.
+- Xonsh's `execution: {"escalate": true, "justification": "…"}` requests review
+  of **each exact expanded pipeline**, independently. It does not approve the
+  outer Python program or create permission for future commands.
+- The optional public `native_shell` tool accepts its own explicit
+  `escalate: true` and justification for the same exact-command review path.
+  Neither frontend automatically escalates or falls back after failure.
+
+Select the policy explicitly in your global `~/.rig/plugins.toml`:
+
+```toml
+[[plugin]]
+crate = "rig-auto-review"
+path = "/absolute/path/to/rig-plugins/crates/rig-auto-review"
+plugin = "rig_auto_review::AutoReviewPlugin"
+```
+
+Run `rig plugin check` and `rig build`, then restart/reload Rig. Configure the
+review model separately in your Rig home's settings below.
 
 It sends a tool-free model call containing the exact prepared command and all
 available root-user messages. Assistant text, tool output and file attachments
@@ -27,9 +45,9 @@ disk read at approval time.
 
 Only a strict `allow` verdict can issue an action-specific permit. Missing model
 configuration, provider errors, malformed output, timeout, changed commands,
-new user input and cancellation never approve escalation. The shell rechecks
-the evidence immediately before starting. There is no automatic native retry
-and no human-question fallback in this first version.
+new user input and cancellation never approve escalation. The shared native
+runtime rechecks the evidence immediately before starting. There is no automatic
+native retry and no human-question fallback in this first version.
 After compaction, reviewed escalation is refused because original user
 restrictions may have been removed. Normal sandboxed work remains available.
 Complete original authorization is required until it can be recovered with its
@@ -53,6 +71,10 @@ bound, the supported ceiling, and complete required bytes/counts split between
 root-user text and loaded project restrictions. It does not run a shell, call a
 model, reveal message contents, change settings, or issue a permit. With native
 execution disabled it reports that state without enabling the backend.
+`native_execution` is the backend state string (`disabled`, `ready` or
+`unavailable`); `native_shell_tool_registered` separately reports public tool
+registration. A ready xonsh backend does not imply the optional shell tool is
+registered or allowed.
 `within_bound` is a size measurement only, not authorization or a promise that
 the reviewer/provider will accept a request. `configuration_error` must be
 checked separately. Missing, pending or compacted evidence is `unavailable`;
@@ -81,7 +103,7 @@ For an existing oversized but **uncompacted** thread:
 3. After loading the approved setting and measuring again, submit a **new** exact
    action for independent review. The failed call is never automatically retried
    or retroactively approved. New input or changed restrictions still revoke
-   permits, and the shell revalidates immediately before launch.
+   permits, and the shared native runtime revalidates immediately before launch.
 
 If the total exceeds the ceiling, or history is compacted, this change does not
 restore reviewed escalation. Continue only work already allowed by the ordinary

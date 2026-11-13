@@ -26,6 +26,7 @@ fn report(
     called: On<ToolCalled<Request>>,
     config: Res<ReviewConfig>,
     native: Option<Res<NativeShellStatus>>,
+    tools: Query<&ToolDef>,
     authorization: Authorization,
     mut commands: Commands,
 ) {
@@ -53,11 +54,12 @@ fn report(
         "configured_max_evidence_bytes": config.max_evidence_bytes,
         "supported_max_evidence_bytes": MAX_EVIDENCE_BYTES,
         "configuration_error": config.validate().err(),
-        "native_shell": match native.as_deref() {
+        "native_execution": match native.as_deref() {
             None => "disabled",
             Some(NativeShellStatus::Ready { .. }) => "ready",
             Some(NativeShellStatus::Unavailable { .. }) => "unavailable",
         },
+        "native_shell_tool_registered": tools.iter().any(|tool| tool.0.name.as_str() == rig_native_shell::NATIVE_SHELL),
         "evidence": evidence,
     });
     commands

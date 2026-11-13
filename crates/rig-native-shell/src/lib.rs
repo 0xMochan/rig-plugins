@@ -7,12 +7,14 @@
 mod authorization;
 mod command;
 mod launch;
+mod request;
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
 pub use command::{PendingCommand, ReviewPermit};
 use command::{ShellArgs, freeze, require_permit};
+pub use request::{NativeCommandRequest, NativeExecution, NativeXonshParent};
 use rig_command::NativeExecutor;
 use rig_harness::prelude::*;
 use rig_harness::rig_core::tool::{Scope, Touches};
@@ -24,33 +26,31 @@ pub use authorization::{
 
 pub const NATIVE_SHELL: &str = "native_shell";
 
-/// Runs native commands under the configured sandbox, or a separately reviewed exception.
+/// Shared native-command lifecycle, without exposing a shell tool.
+///
+/// Frontends select this backend explicitly. Policy plugins may review its
+/// immutable commands, but never install it or grant reusable authority.
 #[derive(Default, Debug)]
-pub struct NativeShellPlugin;
+pub struct NativeCommandRuntimePlugin;
 
-impl Plugin for NativeShellPlugin {
+impl Plugin for NativeCommandRuntimePlugin {
     fn build(&self, app: &mut App) {
+        configure_gate_order(app);
         app.add_setting::<ShellConfig>("native_shell")
             .add_observer(authorization::track_generation)
             .init_resource::<ProjectRoot>()
-            .configure_sets(
+            .add_systems(
                 AgentPass,
-                (
-                    NativeShellSystems::Freeze,
-                    NativeShellSystems::Review,
-                    NativeShellSystems::RequirePermit,
-                )
+                (request::validate_origins, freeze)
                     .chain()
-                    .in_set(Stage::Gate),
+                    .in_set(NativeShellSystems::Freeze),
             )
-            .add_systems(AgentPass, freeze.in_set(NativeShellSystems::Freeze))
-            .add_systems(AgentPass, require_permit.in_set(NativeShellSystems::RequirePermit))
-            .add_open_tool(
-                NATIVE_SHELL,
-                "Run a native command in the workspace through the OS sandbox. Native commands can run cargo, git, and other real programs. Set escalate=true only to request a separately reviewed exception, and explain the required permission in justification. A failed command never retries automatically. Commands have a maximum timeout of 300 seconds.",
-                ToolOptions { footprint: Some(Touches::Writes(Scope::Anything)) },
-                execute,
-            );
+            .add_systems(
+                AgentPass,
+                require_permit.in_set(NativeShellSystems::RequirePermit),
+            )
+            .add_observer(request::bind_request)
+            .add_observer(request::start_request);
     }
 
     fn finish(&self, app: &mut App) {
@@ -75,6 +75,44 @@ impl Plugin for NativeShellPlugin {
         app.insert_resource(status)
             .insert_resource(Executor(executor));
     }
+}
+
+/// Optional public shell-script tool over the shared native runtime.
+#[derive(Default, Debug)]
+pub struct NativeShellPlugin;
+
+impl Plugin for NativeShellPlugin {
+    fn build(&self, app: &mut App) {
+        rig_harness::load::<NativeCommandRuntimePlugin>(app, "rig-native-shell", "dependency");
+        app.add_open_tool(
+            NATIVE_SHELL,
+            "Run a native command in the workspace through the OS sandbox. Native commands can run cargo, git, and other real programs. Set escalate=true only to request a separately reviewed exception, and explain the required permission in justification. A failed command never retries automatically. Commands have a maximum timeout of 300 seconds.",
+            ToolOptions { footprint: Some(Touches::Writes(Scope::Anything)) },
+            execute,
+        );
+    }
+}
+
+/// Configure native lifecycle ordering without selecting execution or policy.
+///
+/// Review-only plugins use this too, so their gates stay ordered when no native
+/// runtime is installed. Ordinary refusals precede freezing and model review.
+pub fn configure_gate_order(app: &mut App) {
+    rig_workspace::configure_gate_order(app);
+    app.configure_sets(
+        AgentPass,
+        (
+            NativeShellSystems::Freeze,
+            NativeShellSystems::Review,
+            NativeShellSystems::RequirePermit,
+        )
+            .chain()
+            .in_set(Stage::Gate),
+    )
+    .configure_sets(
+        AgentPass,
+        NativeShellSystems::Freeze.after(rig_workspace::WorkspaceSystems::Gate),
+    );
 }
 
 /// Other plugins review snapshots after `Freeze` and before `RequirePermit`.
@@ -138,8 +176,7 @@ fn find_codex(home: &std::path::Path) -> Result<PathBuf, String> {
 fn execute(called: On<ToolCalled<ShellArgs>>, mut commands: Commands) {
     let call = called.call;
     let agent = called.agent;
-    let arguments = called.tool_call.function.arguments.clone();
-    commands.queue(move |world: &mut World| launch::start(world, call, agent, arguments));
+    commands.queue(move |world: &mut World| launch::start(world, call, agent));
 }
 
 fn refuse(decision: &mut Decision, message: impl Into<String>) {

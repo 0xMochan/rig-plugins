@@ -1,11 +1,18 @@
 #!/bin/sh
 set -eu
 
+[ "$#" -eq 0 ] || { echo "Usage: $0 (optional RIG_HOME environment variable)" >&2; exit 1; }
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
-tools="$repo/profile/tools"
+home=${RIG_HOME:-"$HOME/.rig"}
+case "$home" in
+    /*) ;;
+    *) echo "RIG_HOME must be an absolute directory path." >&2; exit 1 ;;
+esac
+tools="$home/tools"
 command -v uv >/dev/null 2>&1 || { echo "Install uv before setting up the Monty worker." >&2; exit 1; }
 if [ ! -x "$tools/bin/python" ]; then
-    uv venv "$tools"
+    # Codex setup may already have populated tools/bin; preserve its files.
+    uv venv --allow-existing "$tools"
 fi
 # This wheel installs a compiled Rust executable in bin/. Python only hosts the
 # installation environment; the worker never runs CPython or project code.

@@ -4,6 +4,13 @@
 owns a fresh Monty 1.4.0 worker. No host directories are mounted, no Python OS
 handlers are installed, and no worker environment is inherited.
 
+`MontyRuntimePlugin` provides just the worker runtime, host bridge and
+cancellation for language frontends. It exposes no public tool. Xonsh installs
+that runtime dependency without enabling `run_monty`; select `MontyPlugin`
+explicitly if you want the standalone Python tool. Neither Monty plugin installs
+native execution. Xonsh separately supplies its own typed native host capability;
+that private operation is unavailable to standalone Monty programs.
+
 ```json
 {"code":"r = tool('virtual_bash', {'script': 'printf 21'})\nassert r['status'] == 'success'\nint(r['data']['stdout']) * 2"}
 ```
@@ -32,8 +39,10 @@ without importing its Scheme engine or flattening results to strings.
 
 The open tool declares a write footprint because it can request any tool its
 agent is allowed. A runtime is not a read-only capability merely because one
-script appears harmless. Native work still uses the native tool's separate
-sandbox and one-use review permit. No approval belongs to the Python session.
+script appears harmless. A standalone Monty call to `tool('native_shell', ...)`
+requires that public tool to be separately enabled and allowed; it uses the
+shared native sandbox and one-use review permit. There is no fallback to
+xonsh's private native operation and no approval belonging to the Python session.
 
 The Tokio task owns the checkout; dropping Rig's task aborts it. Upstream's
 kill-on-drop worker handle then requests termination. Normal completion finishes
@@ -42,11 +51,22 @@ REPL, replay or durable native continuation are exposed in this version.
 
 ## Setup and bounds
 
-From this repo, `./agent setup` installs the official hash-pinned binary wheel in
-ignored `profile/tools`, then builds the agent. `uv` is needed for installation;
-the installed worker is a compiled Rust executable, not CPython. Its wheel
-package is `pydantic-monty-runtime==1.4.0`. Alternatively build the matching
-`monty-runtime` crate. Independently composed agents can configure user settings:
+Run `scripts/setup-monty` explicitly to install the official hash-pinned binary
+wheel into `${RIG_HOME:-$HOME/.rig}/tools`. This requires `uv`; it does not build
+or launch an agent. The installed worker is a compiled Rust executable, not
+CPython. Its wheel package is `pydantic-monty-runtime==1.4.0`. Alternatively build
+the matching `monty-runtime` crate. To expose `run_monty`, add the plugin to your
+existing global `~/.rig/plugins.toml` (not needed when using only xonsh):
+
+```toml
+[[plugin]]
+crate = "rig-monty"
+path = "/absolute/path/to/rig-plugins/crates/rig-monty"
+plugin = "rig_monty::MontyPlugin"
+```
+
+Run `rig plugin check` and `rig build`, then restart/reload Rig. An explicit worker
+path can be configured in your Rig home's `settings.toml`:
 
 ```toml
 [monty]
@@ -80,7 +100,7 @@ are explicit so a missing installation never silently passes them:
 
 ```sh
 scripts/setup-monty
-RIG_MONTY_WORKER="$PWD/profile/tools/bin/monty" cargo test --locked -p rig-monty --test runtime -- --ignored
+RIG_MONTY_WORKER="${RIG_HOME:-$HOME/.rig}/tools/bin/monty" cargo test --locked -p rig-monty --test runtime -- --ignored
 ```
 
 They exercise actual tool effects with structured replies and denied gates/access,

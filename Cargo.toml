@@ -30,7 +30,8 @@ rig-command = { path = "crates/rig-command" }
 rig-native-shell = { path = "crates/rig-native-shell" }
 rig-auto-review = { path = "crates/rig-auto-review" }
 rig-bashkit = { path = "crates/rig-bashkit" }
-rig-profile = { path = "crates/rig-profile" }
+rig-status = { path = "crates/rig-status" }
+rig-workspace = { path = "crates/rig-workspace" }
 rig-monty = { path = "crates/rig-monty" }
 rig-xonsh = { path = "crates/rig-xonsh" }
 rig-tui-scroll = { path = "crates/rig-tui-scroll" }
@@ -41,6 +42,7 @@ rig-tui-games = { path = "crates/rig-tui-games" }
 rig-checkpoint = { path = "crates/rig-checkpoint" }
 rig-checkpoint-tasks = { path = "crates/rig-checkpoint-tasks" }
 rig-conversation = { path = "crates/rig-conversation" }
+rig-model-catelog = { path = "crates/rig-model-catelog" }
 rig-delta = { path = "crates/rig-delta" }
 monty-pool = "=1.4.0"
 monty-types = "=1.4.0"

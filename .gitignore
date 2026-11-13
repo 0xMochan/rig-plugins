@@ -1,7 +1,13 @@
 # Rust build output, including nested scratch projects.
 target/
 
-# Local Rig/T3 state and generated tool caches. profile/ has its own allowlist.
+# Workspace-local test scratch and private Delta transport spools.
+.tmp*
+.rig-delta-*
+
+# Local Rig/T3 state and generated tool caches.
+# Preserve any legacy repo-local home privately; it is no longer an agent definition.
+/profile/
 /.local/
 /.rig/
 /t3code/

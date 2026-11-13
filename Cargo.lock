@@ -3801,10 +3801,13 @@ dependencies = [
  "bevy_ecs",
  "bevy_reflect",
  "bevy_tasks",
+ "rig-auto-review",
  "rig-basics",
+ "rig-conversation",
  "rig-harness",
  "rig-native-shell",
  "rig-tui",
+ "rig-workspace",
  "rustix",
  "schemars",
  "serde",
@@ -3916,6 +3919,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rig-model-catelog"
+version = "0.1.0"
+dependencies = [
+ "rig-core",
+ "rig-harness",
+]
+
+[[package]]
 name = "rig-monty"
 version = "0.1.0"
 dependencies = [
@@ -3927,6 +3938,7 @@ dependencies = [
  "monty-pool",
  "monty-types",
  "rig-harness",
+ "rig-native-shell",
  "schemars",
  "serde",
  "serde_json",
@@ -3943,37 +3955,12 @@ dependencies = [
  "bevy_tasks",
  "rig-command",
  "rig-harness",
+ "rig-workspace",
  "schemars",
  "serde",
  "serde_json",
+ "shell-words",
  "thiserror 2.0.21",
-]
-
-[[package]]
-name = "rig-profile"
-version = "0.1.0"
-dependencies = [
- "bevy_app",
- "rig-auto-review",
- "rig-bashkit",
- "rig-basics",
- "rig-checkpoint-tasks",
- "rig-conversation",
- "rig-delta",
- "rig-harness",
- "rig-monty",
- "rig-native-shell",
- "rig-tui",
- "rig-tui-games",
- "rig-tui-history",
- "rig-tui-loading",
- "rig-tui-scroll",
- "rig-tui-tools",
- "rig-xonsh",
- "schemars",
- "serde",
- "serde_json",
- "tempfile",
 ]
 
 [[package]]
@@ -3991,6 +3978,18 @@ dependencies = [
  "tracing",
  "url",
  "webpki-root-certs",
+]
+
+[[package]]
+name = "rig-status"
+version = "0.1.0"
+dependencies = [
+ "rig-harness",
+ "rig-native-shell",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -4116,14 +4115,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "rig-workspace"
+version = "0.1.0"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "rig-basics",
+ "rig-harness",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "rig-xonsh"
 version = "0.1.0"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
+ "futures",
+ "rig-auto-review",
  "rig-bashkit",
+ "rig-core",
  "rig-harness",
  "rig-monty",
+ "rig-native-shell",
+ "rig-workspace",
  "schemars",
  "serde",
  "serde_json",

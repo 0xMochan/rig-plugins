@@ -6,6 +6,89 @@ use rig_harness::rig_core::message::{Message, ToolFunction, ToolName};
 
 use super::*;
 
+#[test]
+fn independent_and_combined_plugins_have_unambiguous_agent_pass_ordering() {
+    fn stock(app: &mut App) {
+        app.add_plugins((
+            rig_basics::BasicCommandsPlugin,
+            rig_basics::subagents::SubagentsPlugin,
+        ));
+        if !app.is_plugin_added::<rig_harness::ask::AskPlugin>() {
+            app.add_plugins(rig_harness::ask::AskPlugin);
+        }
+    }
+
+    fn selected(app: &mut App, selection: &str) {
+        match selection {
+            "workspace" => {
+                app.add_plugins(rig_workspace::WorkspacePlugin);
+            }
+            "native" => {
+                app.add_plugins((
+                    rig_native_shell::NativeCommandRuntimePlugin,
+                    rig_auto_review::AutoReviewPlugin,
+                ));
+            }
+            "review" => {
+                app.add_plugins(rig_auto_review::AutoReviewPlugin);
+            }
+            "delta" => {
+                app.add_plugins((DeltaPlugin, rig_conversation::ConversationPlugin));
+            }
+            "combined" => {
+                app.add_plugins((
+                    rig_workspace::WorkspacePlugin,
+                    rig_native_shell::NativeCommandRuntimePlugin,
+                    rig_auto_review::AutoReviewPlugin,
+                    rig_conversation::ConversationPlugin,
+                    DeltaPlugin,
+                ));
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    for selection in ["workspace", "native", "review", "delta", "combined"] {
+        for stock_first in [true, false] {
+            let home = tempfile::tempdir().unwrap();
+            let mut app = App::new();
+            app.insert_resource(RigHome(Home::at(home.path())))
+                .insert_resource(ProjectRoot(home.path().to_owned()))
+                .insert_resource(Settings::from_toml(
+                    "[native_shell]\ncodex = '/missing-schedule-fixture-codex'",
+                ))
+                .add_plugins(AgentPlugin);
+            if stock_first {
+                stock(&mut app);
+                selected(&mut app, selection);
+            } else {
+                selected(&mut app, selection);
+                stock(&mut app);
+            }
+            app.finish();
+            app.cleanup();
+            app.world_mut().schedule_scope(AgentPass, |world, pass| {
+                let mut settings = pass.get_build_settings();
+                settings.ambiguity_detection = bevy_ecs::schedule::LogLevel::Error;
+                pass.set_build_settings(settings);
+                pass.initialize(world).unwrap_or_else(|error| {
+                    panic!("{selection}, stock_first={stock_first}: {error:?}")
+                });
+            });
+            assert_eq!(
+                app.is_plugin_added::<rig_workspace::WorkspacePlugin>(),
+                matches!(selection, "workspace" | "combined"),
+                "ordering alone must not install workspace policy",
+            );
+            assert_eq!(
+                app.is_plugin_added::<rig_native_shell::NativeCommandRuntimePlugin>(),
+                matches!(selection, "native" | "combined"),
+                "ordering alone must not install native execution",
+            );
+        }
+    }
+}
+
 #[derive(Resource, Default)]
 struct FakeCli {
     replies: VecDeque<(i64, String, String)>,

@@ -17,7 +17,10 @@ use rig_core::serve::adapters::ModelAdapter;
 use rig_core::serve::{Dispatch, ErasedHandler, Reply, Serve};
 use rig_core::test_utils::{MockCompletionModel, MockStreamEvent};
 use rig_harness::settings::Settings;
-use rig_native_shell::{NATIVE_SHELL, NativeShellPlugin, PendingCommand, ReviewPermit};
+use rig_native_shell::{
+    NATIVE_SHELL, NativeCommandRequest, NativeCommandRuntimePlugin, NativeExecution,
+    NativeShellPlugin, PendingCommand, ReviewPermit,
+};
 use tempfile::TempDir;
 
 use super::*;
@@ -56,7 +59,7 @@ fn reviewer_does_not_install_native_execution() {
     app.update();
     let status = &app.world().resource::<StatusReports>().0;
     assert_eq!(status.len(), 1);
-    assert_eq!(status[0]["native_shell"], "disabled");
+    assert_eq!(status[0]["native_execution"], "disabled");
     assert_eq!(status[0]["measurement_only"], true);
     assert_eq!(status[0]["evidence"]["state"], "unavailable");
     assert_eq!(
@@ -123,6 +126,10 @@ struct Fixture {
 
 impl Fixture {
     fn new(answer: &str, configured: bool) -> Self {
+        Self::with_typed_request(answer, configured, false)
+    }
+
+    fn with_typed_request(answer: &str, configured: bool, typed: bool) -> Self {
         let dir = tempfile::tempdir().expect("create fixture directory");
         let executable = dir.path().join("codex-fixture");
         fs::write(&executable, "#!/bin/sh\nprintf 'codex-cli 0.142.0\\n'\n")
@@ -165,8 +172,13 @@ impl Fixture {
             .insert_resource(ProjectRoot(dir.path().to_owned()))
             .init_resource::<Results>()
             .init_resource::<StatusReports>()
-            .add_plugins((AgentPlugin, NativeShellPlugin, AutoReviewPlugin))
+            .add_plugins((AgentPlugin, AutoReviewPlugin))
             .add_observer(record);
+        if typed {
+            app.add_plugins(NativeCommandRuntimePlugin);
+        } else {
+            app.add_plugins(NativeShellPlugin);
+        }
         app.world_mut().spawn(PromptSection::new(
             PromptSection::ORDER_PROJECT,
             "project_instructions",
@@ -182,7 +194,11 @@ impl Fixture {
         app.finish();
         app.cleanup();
         app.update();
-        let call = submit(&mut app, root);
+        let call = if typed {
+            submit_native(&mut app, root, "printf x >> launches")
+        } else {
+            submit(&mut app, root)
+        };
         Self {
             app,
             root,
@@ -255,6 +271,105 @@ fn submit(app: &mut App, root: Entity) -> Entity {
     app.world_mut()
         .spawn((ToolRequest { call }, ForAgent(root)))
         .id()
+}
+
+fn native_request(script: &str) -> NativeCommandRequest {
+    NativeCommandRequest::pipeline(
+        vec![vec!["bash".into(), "-c".into(), script.into()]],
+        NativeExecution {
+            escalate: true,
+            justification: Some("The user requested this workspace write.".into()),
+            timeout_secs: Some(2),
+            ..Default::default()
+        },
+    )
+    .unwrap()
+}
+
+fn submit_native(app: &mut App, root: Entity, script: &str) -> Entity {
+    app.world_mut()
+        .spawn((native_request(script), ForAgent(root)))
+        .id()
+}
+
+#[test]
+fn typed_native_commands_need_independent_review_without_a_public_shell_tool() {
+    let mut fixture = Fixture::with_typed_request(
+        r#"{"verdict":"allow","reason":"The user authorized this write."}"#,
+        true,
+        true,
+    );
+    assert!(!fixture.app.is_plugin_added::<NativeShellPlugin>());
+    let status = fixture.status(fixture.root);
+    assert_eq!(status["native_execution"], "ready");
+    assert_eq!(status["native_shell_tool_registered"], false);
+    assert!(
+        fixture
+            .app
+            .world_mut()
+            .query::<&ToolDef>()
+            .iter(fixture.app.world())
+            .all(|tool| tool.0.name.as_str() != NATIVE_SHELL)
+    );
+    fixture.review_started();
+    fixture.assert_no_launch();
+    fixture.release();
+    fixture.completed(1);
+    assert!(
+        fixture.app.world().resource::<Results>().0[0]
+            .0
+            .is_success()
+    );
+    assert!(!fixture.app.world().resource::<Results>().0[0].1);
+    assert_eq!(
+        fs::read_to_string(fixture.dir.path().join("launches")).unwrap(),
+        "x"
+    );
+    assert!(fixture.model.requests()[0].tools.is_empty());
+    fixture.call = submit_native(&mut fixture.app, fixture.root, "printf x >> launches");
+    fixture.completed(2);
+    assert_eq!(fixture.model.request_count(), 2);
+    assert_eq!(
+        fs::read_to_string(fixture.dir.path().join("launches")).unwrap(),
+        "x"
+    );
+}
+
+#[test]
+fn changed_or_cancelled_typed_native_requests_cannot_use_a_held_approval() {
+    for change in ["command", "input", "cancel"] {
+        let mut fixture = Fixture::with_typed_request(
+            r#"{"verdict":"allow","reason":"Authorized."}"#,
+            true,
+            true,
+        );
+        let review = fixture.review_started();
+        match change {
+            "command" => {
+                fixture
+                    .app
+                    .world_mut()
+                    .entity_mut(fixture.call)
+                    .insert(native_request("printf unexpected >> launches"));
+            }
+            "input" => {
+                fixture.app.world_mut().spawn((
+                    Incoming::new("Stop all commands.", DeliveryMode::Queue),
+                    ForAgent(fixture.root),
+                ));
+            }
+            _ => {
+                fixture.app.world_mut().entity_mut(fixture.call).despawn();
+            }
+        }
+        fixture.release();
+        if change == "cancel" {
+            fixture.until(|world| world.get_entity(review).is_err());
+        } else {
+            fixture.completed(1);
+        }
+        fixture.assert_no_launch();
+    }
 }
 
 #[test]
@@ -497,7 +612,8 @@ fn status_reports_live_capacity_without_authority_contents_model_calls_or_execut
             "configured_max_evidence_bytes": 1,
             "supported_max_evidence_bytes": 262144,
             "configuration_error": null,
-            "native_shell": "ready",
+            "native_execution": "ready",
+            "native_shell_tool_registered": true,
             "evidence": {
                 "state": "too_large",
                 "size": {

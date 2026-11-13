@@ -1,11 +1,16 @@
 #!/bin/sh
 set -eu
 
-repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
-target="$repo/profile/tools/bin/codex-sandbox"
+[ "$#" -eq 0 ] || { echo "Usage: $0 (optional RIG_HOME and CODEX_SANDBOX_BIN environment variables)" >&2; exit 1; }
+home=${RIG_HOME:-"$HOME/.rig"}
+case "$home" in
+    /*) ;;
+    *) echo "RIG_HOME must be an absolute directory path." >&2; exit 1 ;;
+esac
+target="$home/tools/bin/codex-sandbox"
 expected='codex-cli 0.142.0'
 
-# Preserve a compatible existing profile installation across PATH/version changes.
+# Preserve a compatible existing installation across PATH/version changes.
 if [ -z "${CODEX_SANDBOX_BIN:-}" ] && [ -x "$target" ] && [ "$(/usr/bin/env -i "$target" --version 2>/dev/null)" = "$expected" ]; then
     echo "Codex sandbox ready: $target"
     exit 0

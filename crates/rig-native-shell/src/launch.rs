@@ -6,17 +6,12 @@ use rig_command::ExecutionMode;
 use rig_harness::prelude::*;
 use rig_harness::rig_core::tool::{ToolExecutionError, ToolOutput, ToolResult};
 
-use crate::{Authorization, Executor, PendingCommand, ReviewPermit, refuse};
+use crate::{Authorization, Executor, NativeCommandRequest, PendingCommand, ReviewPermit, refuse};
 
 #[derive(Component)]
 struct Launched;
 
-pub(crate) fn start(
-    world: &mut World,
-    call: Entity,
-    agent: Entity,
-    arguments: serde_json::Map<String, serde_json::Value>,
-) {
+pub(crate) fn start(world: &mut World, call: Entity, agent: Entity) {
     let may_start = world.get::<Started>(call).is_some()
         && world.get::<Outcome>(call).is_none()
         && world.get::<Settled>(call).is_none()
@@ -27,7 +22,7 @@ pub(crate) fn start(
     if !may_start {
         return;
     }
-    let prepared = match prepare_launch(world, call, agent, &arguments) {
+    let prepared = match prepare_launch(world, call, agent) {
         Ok(command) => command,
         Err(error) => {
             deny(world, call, error);
@@ -90,17 +85,42 @@ fn prepare_launch(
     world: &mut World,
     call: Entity,
     agent: Entity,
-    arguments: &serde_json::Map<String, serde_json::Value>,
 ) -> Result<PendingCommand, String> {
     let command = world
         .get::<PendingCommand>(call)
         .cloned()
         .ok_or("The command has no prepared execution snapshot.")?;
+    if world
+        .get::<ForAgent>(call)
+        .is_none_or(|owner| owner.0 != agent)
+        || world.get::<Agent>(agent).is_none()
+        || world.get::<AgentId>(agent).is_none()
+    {
+        return Err("The native command's owning agent changed before launch.".to_owned());
+    }
+    rig_workspace::validate_workdir(world, agent).map_err(str::to_owned)?;
+    let native = world.get::<NativeCommandRequest>(call);
+    if native.is_some_and(|request| !crate::request::origin_is_current(world, request, agent)) {
+        return Err("The native xonsh parent capability changed before launch.".to_owned());
+    }
+    let arguments = crate::command::arguments(world.get::<ToolRequest>(call), native)?
+        .ok_or("The native command request is no longer available.")?;
     let base = world
         .get::<WorkDir>(agent)
         .map(|work| &work.0)
         .unwrap_or(&world.resource::<ProjectRoot>().0);
-    if !command.is_call(call) || !command.matches(arguments, base) {
+    if world
+        .get::<rig_workspace::WorkDirScope>(agent)
+        .is_some_and(|scope| {
+            world
+                .get::<AgentId>(agent)
+                .is_none_or(|id| !scope.allows(id, base))
+        })
+    {
+        return Err("The native command's worktree scope is no longer current.".to_owned());
+    }
+    let xonsh_parent = native.and_then(NativeCommandRequest::xonsh_parent);
+    if !command.is_call_for(call, agent) || !command.matches(arguments, base, xonsh_parent) {
         return Err("The prepared command changed before launch.".to_owned());
     }
     if command.is_escalation() {

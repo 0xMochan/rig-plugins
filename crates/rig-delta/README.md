@@ -46,15 +46,24 @@ installer or download executable code automatically.
 mode refuses otherwise: a model-writable journal or consent store is not trusted
 future protocol input. It also refuses file sharing whose checkout contains
 Rig's private home, so raw sessions, prompts or credentials cannot enter file
-sync merely because Git ignore rules changed. A standalone profile whose home is
-inside this checkout cannot live-share this checkout; the normal `~/.rig` home
-or a standalone launcher used from another project avoids that overlap.
+sync merely because Git ignore rules changed. Keep using your normal `~/.rig`
+home outside the checkout rather than putting an agent home in this repository.
 
-`rig-profile` includes `DeltaPlugin`; rebuild and reload/restart to load changed
-code. Independent users can load `rig_delta::DeltaPlugin` beside their selected
-native shell/review policy and a native interactive frontend. The optional `tui`
-feature selects the fresh joined agent in Rig's TUI. An already-running binary
-does not acquire new behavior from source edits.
+Add `DeltaPlugin` explicitly to your existing global `~/.rig/plugins.toml`, beside
+your selected execution/review policy and a native interactive frontend:
+
+```toml
+[[plugin]]
+crate = "rig-delta"
+path = "/absolute/path/to/rig-plugins/crates/rig-delta"
+plugin = "rig_delta::DeltaPlugin"
+```
+
+Run `rig plugin check` and `rig build`, then restart/reload Rig. The optional
+`tui` feature selects the fresh joined agent in Rig's TUI. An already-running
+binary does not acquire new behavior from source edits. Bounded model CLI calls
+require a separately enabled native-shell tool; this plugin does not enable it
+or its reviewer.
 
 ## Live share
 
@@ -230,8 +239,10 @@ model turn.
 The two bounded legacy tools still create ordinary `native_shell` child effects:
 OS sandbox by default, separate exact-command review for explicit escalation,
 1–300-second deadline, no automatic retry. Both the Delta tool and `native_shell`
-must be allowed; the plugin never widens an allowlist. `confirm_upload` is intent,
-not an execution permit. Their typed actions include contract/auth/org inspection,
+must be allowed; the plugin never widens an allowlist. Xonsh's typed native
+command path does not satisfy this legacy dependency: these Delta tools have not
+migrated to it. `confirm_upload` is intent, not an execution permit. Their typed
+actions include contract/auth/org inspection,
 thread list/search/show/status/create/share/invite/unshare/fork,
 worktree list/create/attach, and MCP schema search. Search is bounded to 1–100
 results; message ranges are 1-based, inclusive and at most 20 messages. MCP schema

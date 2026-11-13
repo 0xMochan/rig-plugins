@@ -135,6 +135,19 @@ fn restored_binding_refuses_coding_but_does_not_refuse_unbound_agents() {
     );
     assert!(denied.tool_result().output().render().contains("reconnect"));
 
+    // Native xonsh children are concrete effects, not public tool calls. They
+    // must still stop at the collaboration ownership gate before they start.
+    let native = app
+        .world_mut()
+        .spawn((
+            Effect::default(),
+            rig_workspace::WorkspaceOperation,
+            ForAgent(bound),
+        ))
+        .id();
+    assert!(outcome(&mut app, native).tool_result().is_refused());
+    assert!(app.world().get::<Started>(native).is_none());
+
     let ordinary = app.world_mut().spawn(Agent).id();
     let call = tool_request(&mut app, ordinary);
     let allowed = outcome(&mut app, call);

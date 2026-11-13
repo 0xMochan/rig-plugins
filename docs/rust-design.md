@@ -19,6 +19,20 @@ The user suggested [Beautiful Rust](https://www.beautifulrust.dev/) as inspirati
 
 The concrete choices this guidance informs are a flat `crates/` workspace, private validated command state, owned snapshots across asynchronous work, typed error values, deliberate cloning of immutable review evidence, and explicit ECS ordering where one system consumes another's deferred commands. Bevy systems keep their normal by-value parameters and framework prelude; those are already borrowed views. Passive settings remain plain data, while permission invariants stay behind constructors.
 
+AgentPass gate ordering uses the pinned Rig 0.46.0 public sets, not plugin
+registration order: stock command/question and subagent depth checks precede
+workspace policy, Delta ownership, then native Freeze/Review/RequirePermit.
+Decisions are first-wins, so ordinary refusals must be visible before command
+preparation or model review. The workspace and native ordering helpers configure
+only scheduling and are shared by their actual downstream consumers; neither
+installs confinement, execution or approval. Delta orders its joined-workspace
+prompt edit after the optional conversation edit without installing that plugin.
+A strict Bevy 0.20.0 schedule-build test covers standalone workspace, native,
+review and Delta selections plus their combination in both stock-plugin
+registration orders. The relevant library checks pass (89 tests, one separate
+real-Delta account test intentionally ignored); this does not rebuild or validate
+the user's running global agent or prove OS enforcement.
+
 We deliberately avoid copying its entire lint configuration or creating abstraction and test matrices merely to comply with a checklist. Rig/Bevy dependencies are exactly pinned because their release APIs must agree. A concrete process worker owns cleanup and deadlines even when an async caller stops polling; introducing an executor abstraction just for that worker would add a second lifetime contract. The reasons for that exception belong with the runner's ownership documentation. Review questions and the chosen behavior matter more than a larger warning count.
 
 The follow-up audit keeps restriction evidence owned with the user-message
@@ -29,28 +43,55 @@ integration point; it avoids a second instruction loader or copying the whole
 actor prompt. Later capture compares the same restrictions before launch.
 Compacted history refuses escalation until original authorization can be
 recovered with provenance. A generated summary cannot fill that ownership gap.
-Child directory inheritance belongs to Rig's ServicesPlugin; the profile only
-supplies defaults for roots, keeping one owner for each lifecycle responsibility.
+Child directory inheritance belongs to Rig's ServicesPlugin. The explicitly
+selected `rig-workspace` plugin supplies root defaults and canonical workdir
+confinement, keeping one owner for each lifecycle responsibility. Without
+`WorkDir`, stock file tools fall back to an unconfined project root, so this
+workspace policy is not an optional presentation preference.
+
+The user's global `plugins.toml` owns capability selection; this repository has
+no agent bundle or second Rig home. `rig-status` only inventories harness
+registrations and current tool access. Runtime dependencies are separate from
+public frontends: xonsh installs `MontyRuntimePlugin` and
+`NativeCommandRuntimePlugin`, while public `run_monty` and `native_shell` tools
+require explicit frontend selection. Auto-review installs neither runtime nor
+frontend; it observes frozen commands on the elevation path.
 
 Monty code and JSON inputs are owned across worker/host suspension. Conversion
 borrows `ObjectRef`, explicitly budgets JSON bytes/depth, and rejects unsupported
 types instead of flattening them. Only the separate trusted worker executable
 owns Monty's allocator; the Rig plugin owns its checkout and abort guard. A
-bounded request queue carries concrete tool requests into ECS, not arbitrary
-world-mutating closures. The same host path serves Monty and xonsh.
-Dispatch reads parent state through a query and spawns through Commands before
-PollTasks/AgentLoop in Update, following Rig Steel's established ingress point.
+bounded request queue carries owned host requests into ECS, not arbitrary
+world-mutating closures. Ordinary `tool(name, arguments)` calls create normal
+`ToolRequest` children. Xonsh's private native operation instead creates a typed
+`NativeCommandRequest` child with the same agent and turn; it is not a hidden
+`native_shell` tool call or an allowlist exception. Standalone Monty has no such
+native capability. Dispatch reads parent state through a query and spawns through
+Commands before PollTasks/AgentLoop in Update, following Rig Steel's established
+ingress point.
 This avoids Rig's private between-stage persistence systems and runs even when
 AgentPass is quiet. It needs no exclusive world borrow. Tests drive App::update
 so they exercise the same dispatcher and kernel ordering as the real app.
 
 The xonsh frontend borrows source while scanning. Decoded literal words own their
 strings; interpolation expressions remain slices until emitted into Python.
-Capture is a boolean, backend is an enum, and literal versus splice is an enum.
-The source limit bounds parser work before execution, while Monty validates the
-whole generated module. Python helpers render quoted argv only; they do not own
-permission or implement a second process launcher. Each module has a concrete
-responsibility without a general language framework.
+Capture is a boolean, backend and input mode are enums, and literal versus
+splice is an enum. Mixed mode retains explicit subprocess expressions; commands
+mode uses the same argv grammar with newline/EOF terminators rather than
+heuristic Python fallback. Plain path literals lower to Monty's lexical Path
+values, and only actual Paths are converted to argument strings; arbitrary
+`__fspath__` coercion and filesystem authority are not introduced. Path lowering
+also visits generated interpolation expressions while preserving literal argv
+strings. The source limit bounds parser work before execution, while Monty
+validates the whole generated module. Python helpers expand argv as data, then
+the native bridge renders a quoted pipeline for the shared runtime; they do not own
+permission or implement a second process launcher. Typed execution defaults are
+validated at the frontend boundary and applied independently to each native
+pipeline. Each expanded command is frozen, separately reviewed when escalation
+is explicit, and revalidated at launch. No permit belongs to an interpreter
+session. Virtual requests reject native execution options instead of ignoring
+them. Each module has a concrete responsibility without a general language
+framework.
 
 The TUI plugins extend the public key pipeline and panel canvases instead of
 forking the frontend or saving a second transcript/history. Wheel events become
@@ -58,16 +99,18 @@ stock scroll actions; Rig owns reading anchors and bottom follow. Prefix
 navigation owns one original draft and its selected entry across key events,
 while searches borrow `PromptHistory`. A suggestion is rendered separately from
 the editor text, so merely displaying it cannot submit or persist a completion.
-The composition explicitly orders the public wheel, click and history filter
-sets because they mutate `PendingInput`; each capability remains independent.
+The wheel, click, history and game filters use disjoint event/focus eligibility
+instead of relying on an agent bundle to impose a total order. Public filter
+sets remain available for custom consumers that need explicit ordering; each
+capability remains independent.
 
 Mouse reporting owns a Unix terminal file for the one immediate write required
 before Rig hands control to an external program. Other mode writes use the
 public terminal message. That file also gives drop cleanup an independent owner
 after Rig redirects stdout; in-memory tests never open it. Startup diagnostics
 are ordinary serialized metadata, separate from both sandbox enforcement and
-review permits. The profile inventories harness registrations rather than
-inventing a second plugin registry.
+review permits. The standalone status plugin reads harness registrations rather
+than inventing a second plugin registry.
 
 Checkpoint capture borrows the delivered conversation until Gate and then owns
 its view across deferred spawning. Message bodies remain Rig's immutable shared

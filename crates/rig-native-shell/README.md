@@ -1,15 +1,37 @@
 # rig-native-shell
 
-`NativeShellPlugin` adds `native_shell`. The tool prepares an immutable command
-at Gate, then runs that snapshot through `rig-command`. Its arguments are
-`script`, optional `cwd` and `timeout_secs`, and optional `escalate` with a
-required `justification`. The default is sandboxed native execution. A failure
-never retries automatically.
+A shared native command runtime with an optional shell tool frontend:
 
-A completed dispatch returns structured JSON with `output`, `status`, and
+- `NativeCommandRuntimePlugin` freezes typed command requests at Gate and runs
+  them through `rig-command`. It owns sandbox startup, process lifetime and
+  exact-command permission revalidation; it exposes no model tool.
+- `NativeShellPlugin` adds the public `native_shell` tool and installs the same
+  runtime. Its arguments are `script`, optional `cwd` and `timeout_secs`, and
+  optional `escalate` with a required `justification`.
+
+Xonsh installs the runtime directly. Its native shell forms submit typed
+`NativeCommandRequest` child effects, so they work without exposing or calling
+`native_shell`. The default remains sandboxed native execution. A failure never
+retries automatically, and no permit belongs to an outer interpreter session.
+
+To expose the optional shell tool, add it explicitly to your global
+`~/.rig/plugins.toml`:
+
+```toml
+[[plugin]]
+crate = "rig-native-shell"
+path = "/absolute/path/to/rig-plugins/crates/rig-native-shell"
+plugin = "rig_native_shell::NativeShellPlugin"
+```
+
+Run `rig plugin check` and `rig build`, then restart/reload Rig. Omitting this
+public frontend does not disable xonsh's native runtime dependency. Auto-review
+installs neither the runtime nor this frontend.
+
+A completed native command returns structured JSON with `output`, `status`, and
 `truncated`. A nonzero command exit is represented in `status`; it is distinct
-from a tool refusal or a failure to launch. Code-mode consumers receive this
-declared JSON value directly.
+from refusal or a failure to launch. The optional tool exposes that JSON
+directly. Xonsh checks it before returning captured text or printed output.
 
 Explicit escalation is refused unless another trusted plugin issues a permit
 for this exact command and its root user's evidence. `rig-auto-review` provides
@@ -48,8 +70,16 @@ timeout_secs = 60
 The executor checks its pinned Codex version with a cleared environment. Use
 a trusted native executable, not an npm wrapper requiring Node from PATH.
 Failed validation includes the executable path, exit status, stdout and stderr.
-`NativeShellStatus` exposes this startup result as diagnostic metadata for
-composition tools; it is not permission or evidence of OS enforcement.
+`NativeShellStatus` exposes the runtime's startup result as diagnostic metadata
+for `rig-status` and other inspectors; it is not permission or evidence of OS
+enforcement. `agent_status.native_execution` reports that backend status object,
+while `native_execution_validation` describes startup validation only.
+`native_shell_tool_registered` is a separate boolean for public tool registration;
+it is not an allowlist grant. The retained `[native_shell]` settings configure the
+shared runtime even when the optional public shell tool is absent.
 
-This plugin governs its own tool;
-it does not sandbox unrelated tools, file access, or arbitrary other plugins.
+This runtime governs its typed commands and the optional shell frontend. It does
+not sandbox unrelated tools, file access, or arbitrary other plugins. Standalone
+Monty does not acquire the xonsh-specific native host capability. Delta's bounded
+legacy tools still require the public `native_shell` tool; they have not migrated
+to typed native requests.

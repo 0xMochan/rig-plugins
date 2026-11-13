@@ -227,6 +227,13 @@ fn worker_isolation_and_limits_fail_explicitly_without_poisoning_later_calls() {
     assert_eq!(output["value"], json!({"ok":true}));
     assert_eq!(output["output_truncated"], true);
     assert_eq!(output["stdout"].as_str().unwrap().len(), 65_536);
+
+    let native = fixture.run("__rig_xonsh_native([['touch', 'forbidden-native']])");
+    assert!(
+        !native.is_success(),
+        "standalone Monty gained xonsh's native capability"
+    );
+    assert!(!fixture.directory.path().join("forbidden-native").exists());
 }
 
 #[test]
